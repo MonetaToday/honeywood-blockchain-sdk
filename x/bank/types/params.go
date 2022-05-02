@@ -19,6 +19,10 @@ var (
 	KeySendEnabled = []byte("SendEnabled")
 	// KeyDefaultSendEnabled is store's key for the DefaultSendEnabled option
 	KeyDefaultSendEnabled = []byte("DefaultSendEnabled")
+	KeyLockedSenders = []byte("LockedSenders")
+	KeyUnlockedSenders = []byte("UnlockedSenders")
+	KeyLockedReceivers = []byte("LockedReceivers")
+	KeyUnlockedReceivers = []byte("UnlockedReceivers")
 )
 
 // ParamKeyTable for bank module.
@@ -27,10 +31,21 @@ func ParamKeyTable() paramtypes.KeyTable {
 }
 
 // NewParams creates a new parameter configuration for the bank module
-func NewParams(defaultSendEnabled bool, sendEnabledParams SendEnabledParams) Params {
+func NewParams(
+	defaultSendEnabled bool,
+	sendEnabledParams SendEnabledParams,
+	lockedSenders []*AddressDenoms,
+	unlockedSenders []*AddressDenoms,
+	lockedReceivers []*AddressDenoms,
+	unlockedReceivers []*AddressDenoms,
+) Params {
 	return Params{
 		SendEnabled:        sendEnabledParams,
 		DefaultSendEnabled: defaultSendEnabled,
+		LockedSenders: 			lockedSenders,
+		UnlockedSenders: 	  unlockedSenders,
+		LockedReceivers: 	  lockedReceivers,
+		UnlockedReceivers: 	unlockedReceivers,
 	}
 }
 
@@ -40,6 +55,10 @@ func DefaultParams() Params {
 		SendEnabled: SendEnabledParams{},
 		// The default send enabled value allows send transfers for all coin denoms
 		DefaultSendEnabled: true,
+		LockedSenders: []*AddressDenoms{},
+		UnlockedSenders: []*AddressDenoms{},
+		LockedReceivers: []*AddressDenoms{},
+		UnlockedReceivers: []*AddressDenoms{},
 	}
 }
 
@@ -48,6 +67,23 @@ func (p Params) Validate() error {
 	if err := validateSendEnabledParams(p.SendEnabled); err != nil {
 		return err
 	}
+
+	if err := validateAddressDenomsParams(p.LockedSenders); err != nil {
+		return err
+	}
+
+	if err := validateAddressDenomsParams(p.UnlockedSenders); err != nil {
+		return err
+	}
+
+	if err := validateAddressDenomsParams(p.LockedReceivers); err != nil {
+		return err
+	}
+
+	if err := validateAddressDenomsParams(p.UnlockedReceivers); err != nil {
+		return err
+	}
+
 	return validateIsBool(p.DefaultSendEnabled)
 }
 
@@ -67,6 +103,66 @@ func (p Params) SendEnabledDenom(denom string) bool {
 	return p.DefaultSendEnabled
 }
 
+// LockedSenderDenom returns true if the given denom is disabled for sending by sender
+func (p Params) LockedSenderDenom(sender sdk.AccAddress, denom string) bool {
+	strSender := sender.String()
+	for _, lockedSender := range p.LockedSenders {
+		if lockedSender.Address == strSender {
+			for _, d := range lockedSender.Denoms {
+				if d == denom {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// UnlockedSenderDenom returns true if the given denom is enabled for sending by sender
+func (p Params) UnlockedSenderDenom(sender sdk.AccAddress, denom string) bool {
+	strSender := sender.String()
+	for _, unlockedSender := range p.UnlockedSenders {
+		if unlockedSender.Address == strSender {
+			for _, d := range unlockedSender.Denoms {
+				if d == denom {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// LockedReceiverDenom returns true if the given denom is disabled for sending to receiver
+func (p Params) LockedReceiverDenom(receiver sdk.AccAddress, denom string) bool {
+	strReceiver := receiver.String()
+	for _, lockedReceiver := range p.LockedReceivers {
+		if lockedReceiver.Address == strReceiver {
+			for _, d := range lockedReceiver.Denoms {
+				if d == denom {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// UnlockedReceiverDenom returns true if the given denom is enabled for sending to receiver
+func (p Params) UnlockedReceiverDenom(receiver sdk.AccAddress, denom string) bool {
+	strReceiver := receiver.String()
+	for _, unlockedReceiver := range p.UnlockedReceivers {
+		if unlockedReceiver.Address == strReceiver {
+			for _, d := range unlockedReceiver.Denoms {
+				if d == denom {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // SetSendEnabledParam returns an updated set of Parameters with the given denom
 // send enabled flag set.
 func (p Params) SetSendEnabledParam(denom string, sendEnabled bool) Params {
@@ -77,7 +173,7 @@ func (p Params) SetSendEnabledParam(denom string, sendEnabled bool) Params {
 		}
 	}
 	sendParams = append(sendParams, NewSendEnabled(denom, sendEnabled))
-	return NewParams(p.DefaultSendEnabled, sendParams)
+	return NewParams(p.DefaultSendEnabled, sendParams, p.LockedSenders, p.UnlockedSenders, p.LockedReceivers, p.UnlockedReceivers)
 }
 
 // ParamSetPairs implements params.ParamSet
@@ -85,6 +181,10 @@ func (p *Params) ParamSetPairs() paramtypes.ParamSetPairs {
 	return paramtypes.ParamSetPairs{
 		paramtypes.NewParamSetPair(KeySendEnabled, &p.SendEnabled, validateSendEnabledParams),
 		paramtypes.NewParamSetPair(KeyDefaultSendEnabled, &p.DefaultSendEnabled, validateIsBool),
+		paramtypes.NewParamSetPair(KeyLockedSenders, &p.LockedSenders, validateAddressDenomsParams),
+		paramtypes.NewParamSetPair(KeyUnlockedSenders, &p.UnlockedSenders, validateAddressDenomsParams),
+		paramtypes.NewParamSetPair(KeyLockedReceivers, &p.LockedReceivers, validateAddressDenomsParams),
+		paramtypes.NewParamSetPair(KeyUnlockedReceivers, &p.UnlockedReceivers, validateAddressDenomsParams),
 	}
 }
 
@@ -138,5 +238,33 @@ func validateIsBool(i interface{}) error {
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
 	}
+	return nil
+}
+
+func validateAddressDenomsParams(i interface{}) error {
+	params, ok := i.([]*AddressDenoms)
+	if !ok {
+		return fmt.Errorf("invalid parameter type: %T", i)
+	}
+
+	registeredAddress := make(map[string]bool)
+	for _, p := range params {
+		if _, exists := registeredAddress[p.Address]; exists {
+			return fmt.Errorf("duplicate AddressDenoms.Address parameter found: '%s'", p.Address)
+		}
+		// ensure each denom is only registered one time.
+		registeredDenom := make(map[string]bool)
+		for _, denom := range p.Denoms {
+			if _, exists := registeredDenom[denom]; exists {
+				return fmt.Errorf("duplicate AddressDenoms.Denom parameter found: '%s'", denom)
+			}
+			if err := sdk.ValidateDenom(denom); err != nil {
+				return err
+			}
+			registeredDenom[denom] = true
+		}
+		registeredAddress[p.Address] = true
+	}
+	
 	return nil
 }

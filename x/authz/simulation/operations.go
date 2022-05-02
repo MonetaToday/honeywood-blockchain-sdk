@@ -240,7 +240,7 @@ func SimulateMsgExec(ak authz.AccountKeeper, bk authz.BankKeeper, k keeper.Keepe
 		granterspendableCoins := bk.SpendableCoins(ctx, granterAddr)
 		coins := simtypes.RandSubsetCoins(r, granterspendableCoins)
 		// Check send_enabled status of each sent coin denom
-		if err := bk.IsSendEnabledCoins(ctx, coins...); err != nil {
+		if err := bk.IsSendEnabledCoins(ctx, granterAddr, granteeAddr, coins...); err != nil {
 			return simtypes.NoOpMsg(authz.ModuleName, TypeMsgExec, err.Error()), nil, nil
 		}
 

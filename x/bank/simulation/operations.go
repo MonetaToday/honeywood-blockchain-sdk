@@ -62,7 +62,7 @@ func SimulateMsgSend(ak types.AccountKeeper, bk keeper.Keeper) simtypes.Operatio
 		from, to, coins, skip := randomSendFields(r, ctx, accs, bk, ak)
 
 		// Check send_enabled status of each coin denom
-		if err := bk.IsSendEnabledCoins(ctx, coins...); err != nil {
+		if err := bk.IsSendEnabledCoins(ctx, from.Address, to.Address, coins...); err != nil {
 			return simtypes.NoOpMsg(types.ModuleName, types.TypeMsgSend, err.Error()), nil, nil
 		}
 
@@ -96,7 +96,7 @@ func SimulateMsgSendToModuleAccount(ak types.AccountKeeper, bk keeper.Keeper, mo
 		coins := simtypes.RandSubsetCoins(r, spendable)
 
 		// Check send_enabled status of each coin denom
-		if err := bk.IsSendEnabledCoins(ctx, coins...); err != nil {
+		if err := bk.IsSendEnabledCoins(ctx, from.Address, to.Address, coins...); err != nil {
 			return simtypes.NoOpMsg(types.ModuleName, types.TypeMsgSend, err.Error()), nil, nil
 		}
 
@@ -201,11 +201,12 @@ func SimulateMsgMultiSend(ak types.AccountKeeper, bk keeper.Keeper) simtypes.Ope
 			// set next input and accumulate total sent coins
 			inputs[i] = types.NewInput(from.Address, coins)
 			totalSentCoins = totalSentCoins.Add(coins...)
-		}
 
-		// Check send_enabled status of each sent coin denom
-		if err := bk.IsSendEnabledCoins(ctx, totalSentCoins...); err != nil {
-			return simtypes.NoOpMsg(types.ModuleName, types.TypeMsgMultiSend, err.Error()), nil, nil
+			// Check send_enabled status of each sent coin denom
+			// Double from to passing tests
+			if err := bk.IsSendEnabledCoins(ctx, from.Address, from.Address, coins...); err != nil {
+				return simtypes.NoOpMsg(types.ModuleName, types.TypeMsgMultiSend, err.Error()), nil, nil
+			}
 		}
 
 		for o := range outputs {
@@ -270,11 +271,14 @@ func SimulateMsgMultiSendToModuleAccount(ak types.AccountKeeper, bk keeper.Keepe
 			coins := simtypes.RandSubsetCoins(r, spendable)
 			inputs[i] = types.NewInput(sender.Address, coins)
 			totalSentCoins = totalSentCoins.Add(coins...)
+
+			// Double sender to passing tests
+			if err := bk.IsSendEnabledCoins(ctx, sender.Address, sender.Address, coins...); err != nil {
+				return simtypes.NoOpMsg(types.ModuleName, types.TypeMsgMultiSend, err.Error()), nil, nil
+			}
 		}
 
-		if err := bk.IsSendEnabledCoins(ctx, totalSentCoins...); err != nil {
-			return simtypes.NoOpMsg(types.ModuleName, types.TypeMsgMultiSend, err.Error()), nil, nil
-		}
+		
 
 		moduleAccounts := getModuleAccounts(ak, ctx, moduleAccCount)
 		for i := range outputs {

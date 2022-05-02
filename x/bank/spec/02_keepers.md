@@ -105,7 +105,7 @@ type SendKeeper interface {
     SetParams(ctx sdk.Context, params types.Params)
 
     IsSendEnabledCoin(ctx sdk.Context, coin sdk.Coin) bool
-    IsSendEnabledCoins(ctx sdk.Context, coins ...sdk.Coin) error
+    IsSendEnabledCoins(ctx sdk.Context, sender sdk.AccAddress, receiver sdk.AccAddress, coins ...sdk.Coin) error
 
     BlockedAddr(addr sdk.AccAddress) bool
 }

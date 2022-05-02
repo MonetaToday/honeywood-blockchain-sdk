@@ -32,16 +32,17 @@ func (s msgServer) CreateVestingAccount(goCtx context.Context, msg *types.MsgCre
 	ak := s.AccountKeeper
 	bk := s.BankKeeper
 
-	if err := bk.IsSendEnabledCoins(ctx, msg.Amount...); err != nil {
-		return nil, err
-	}
-
 	from, err := sdk.AccAddressFromBech32(msg.FromAddress)
 	if err != nil {
 		return nil, err
 	}
+
 	to, err := sdk.AccAddressFromBech32(msg.ToAddress)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := bk.IsSendEnabledCoins(ctx, from, to, msg.Amount...); err != nil {
 		return nil, err
 	}
 
