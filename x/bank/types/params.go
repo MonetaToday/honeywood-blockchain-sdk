@@ -104,18 +104,14 @@ func (p Params) SendEnabledDenom(denom string) bool {
 }
 
 // LockedSenderDenom returns true if the given denom is disabled for sending by sender
-func (p Params) LockedSenderDenom(sender sdk.AccAddress, denom string) bool {
+func (p Params) LockedSenderDenom(sender sdk.AccAddress) *AddressDenoms {
 	strSender := sender.String()
 	for _, lockedSender := range p.LockedSenders {
 		if lockedSender.Address == strSender {
-			for _, d := range lockedSender.Denoms {
-				if d == denom {
-					return true
-				}
-			}
+			return lockedSender
 		}
 	}
-	return false
+	return nil
 }
 
 // UnlockedSenderDenom returns true if the given denom is enabled for sending by sender

@@ -271,13 +271,14 @@ func (k BaseSendKeeper) setBalance(ctx sdk.Context, addr sdk.AccAddress, balance
 // for all provided coin
 func (k BaseSendKeeper) IsSendEnabledCoins(ctx sdk.Context, sender sdk.AccAddress, receiver sdk.AccAddress, coins ...sdk.Coin) error {
 	for _, coin := range coins {
+		balance := k.GetBalance(ctx, sender, coin.Denom)
 		if !k.IsSendEnabledCoin(ctx, coin) {
-			if !k.IsSendUnlockedSender(ctx, sender, coin) && !k.IsSendUnlockedReceiver(ctx, receiver, coin) {
+			if !k.IsSendUnlockedSender(ctx, sender, balance, coin) && !k.IsSendUnlockedReceiver(ctx, receiver, balance, coin) {
 				return sdkerrors.Wrapf(types.ErrSendDisabled, "%s transfers are currently disabled", coin.Denom)
 			}
 		} else {
-			if k.IsSendLockedSender(ctx, sender, coin) || k.IsSendLockedReceiver(ctx, receiver, coin) {
-				return sdkerrors.Wrapf(types.ErrSendDisabled, "%s transfers are currently disabled", coin.Denom)
+			if k.IsSendLockedSender(ctx, sender, balance, coin) || k.IsSendLockedReceiver(ctx, receiver, balance, coin) {
+				return sdkerrors.Wrapf(types.ErrSendDisabled, "You can't transfer this amount of %s", coin.Denom)
 			}
 		}
 	}
@@ -289,19 +290,45 @@ func (k BaseSendKeeper) IsSendEnabledCoin(ctx sdk.Context, coin sdk.Coin) bool {
 	return k.GetParams(ctx).SendEnabledDenom(coin.Denom)
 }
 
-func (k BaseSendKeeper) IsSendLockedSender(ctx sdk.Context, sender sdk.AccAddress, coin sdk.Coin) bool {
-	return k.GetParams(ctx).LockedSenderDenom(sender, coin.Denom)
+func (k BaseSendKeeper) IsSendLockedSender(ctx sdk.Context, sender sdk.AccAddress, balance sdk.Coin, amount sdk.Coin) bool {
+	lockedSender := k.GetParams(ctx).LockedSenderDenom(sender);
+
+	if (lockedSender != nil) {
+		for _, denom := range lockedSender.Denoms {
+			if denom == amount.Denom {
+				return true
+			}
+		}
+
+		vestedCoins := k.LockedCoins(ctx, sender)
+		vested := sdk.NewCoin(amount.Denom, vestedCoins.AmountOf(amount.Denom))
+		spendable := balance.Sub(vested)
+		_, hasNeg := sdk.Coins{spendable}.SafeSub(sdk.Coins{amount})
+		if hasNeg {
+			// false because the next handlers should process this case.
+			return false
+		}
+
+		newBalance := balance.Sub(amount)
+		lockedAmount := sdk.NewCoin(amount.Denom, lockedSender.Coins.AmountOf(amount.Denom)) 
+		_, hasNeg = sdk.Coins{newBalance}.SafeSub(sdk.Coins{lockedAmount})
+		if hasNeg {
+			return true
+		}
+	}
+
+	return false;
 }
 
-func (k BaseSendKeeper) IsSendUnlockedSender(ctx sdk.Context, sender sdk.AccAddress, coin sdk.Coin) bool {
+func (k BaseSendKeeper) IsSendUnlockedSender(ctx sdk.Context, sender sdk.AccAddress, balance sdk.Coin, coin sdk.Coin) bool {
 	return k.GetParams(ctx).UnlockedSenderDenom(sender, coin.Denom)
 }
 
-func (k BaseSendKeeper) IsSendLockedReceiver(ctx sdk.Context, receiver sdk.AccAddress, coin sdk.Coin) bool {
+func (k BaseSendKeeper) IsSendLockedReceiver(ctx sdk.Context, receiver sdk.AccAddress, balance sdk.Coin, coin sdk.Coin) bool {
 	return k.GetParams(ctx).LockedReceiverDenom(receiver, coin.Denom)
 }
 
-func (k BaseSendKeeper) IsSendUnlockedReceiver(ctx sdk.Context, receiver sdk.AccAddress, coin sdk.Coin) bool {
+func (k BaseSendKeeper) IsSendUnlockedReceiver(ctx sdk.Context, receiver sdk.AccAddress, balance sdk.Coin, coin sdk.Coin) bool {
 	return k.GetParams(ctx).UnlockedReceiverDenom(receiver, coin.Denom)
 }
 

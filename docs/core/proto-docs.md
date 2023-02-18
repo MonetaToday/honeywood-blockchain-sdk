@@ -1613,13 +1613,14 @@ Since: cosmos-sdk 0.43
 <a name="cosmos.bank.v1beta1.AddressDenoms"></a>
 
 ### AddressDenoms
-Input models transaction input.
+AddressDenoms
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | `address` | [string](#string) |  |  |
 | `denoms` | [string](#string) | repeated |  |
+| `coins` | [cosmos.base.v1beta1.Coin](#cosmos.base.v1beta1.Coin) | repeated |  |
 
 
 
